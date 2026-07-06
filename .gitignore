@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+dist/
+.env
+
+# Python virtual environment and cache
+venv/
+__pycache__/
+*.pyc
+
+# Local databases and temp data
+chromadb_data/
+tmp/
+*.db
+*.log
