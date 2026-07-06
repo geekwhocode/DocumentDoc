@@ -1,18 +1,30 @@
-import { UploadCloud, FileText, Loader2, X } from 'lucide-react';
+import { FileText, X, Plus, MessageSquare, Trash2 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   documents: string[];
-  uploading: boolean;
-  onFileUpload: (files: FileList | null) => Promise<void>;
+  activeFiles: string[];
+  onToggleActiveFile: (filename: string) => void;
+  conversations: { id: string; title: string }[];
+  currentConversationId: string | null;
+  onSelectConversation: (id: string | null) => void;
+  onDeleteConversation: (id: string) => void;
+  onNewChat: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose, documents, uploading, onFileUpload }: SidebarProps) {
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFileUpload(e.target.files);
-  };
-
+export default function Sidebar({ 
+  isOpen, 
+  onClose, 
+  documents, 
+  activeFiles,
+  onToggleActiveFile,
+  conversations,
+  currentConversationId,
+  onSelectConversation,
+  onDeleteConversation,
+  onNewChat
+}: SidebarProps) {
   return (
     <>
       {/* Mobile backdrop */}
@@ -36,46 +48,94 @@ export default function Sidebar({ isOpen, onClose, documents, uploading, onFileU
           </div>
           <button 
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-surface-700 transition-colors"
+            className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-surface-700 transition-colors md:hidden"
             title="Close Sidebar"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-4 flex-1 overflow-y-auto">
-          <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">Knowledge Base</h3>
-          
-          <label className={`
-            relative flex flex-col items-center justify-center p-6 border-2 border-dashed 
-            rounded-xl cursor-pointer transition-colors
-            ${uploading ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 dark:hover:border-brand-400'}
-          `}>
-            <input 
-              type="file" 
-              className="hidden" 
-              accept=".pdf,.doc,.docx,.md,.txt" 
-              onChange={handleFileUpload}
-              disabled={uploading}
-              multiple
-            />
-            {uploading ? (
-              <Loader2 className="h-8 w-8 text-brand-500 animate-spin mb-2" />
-            ) : (
-              <UploadCloud className="h-8 w-8 text-slate-400 mb-2" />
-            )}
-            <span className="text-sm text-center text-slate-500 dark:text-slate-400">
-              {uploading ? 'Processing...' : 'Upload PDF or Word'}
-            </span>
-          </label>
+        <div className="p-4 flex-1 overflow-y-auto space-y-6">
+          {/* New Chat Button */}
+          <button
+            onClick={() => {
+              onNewChat();
+              onClose();
+            }}
+            className="w-full py-2.5 px-4 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
+          >
+            <Plus className="h-4 w-4" />
+            New Chat
+          </button>
 
-          <div className="mt-6 space-y-2">
-            {documents.map((doc, idx) => (
-               <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-surface-900 border border-slate-100 dark:border-slate-700">
-                <FileText className="h-4 w-4 text-brand-500" />
-                <span className="text-sm truncate">{doc}</span>
-              </div>
-            ))}
+          {/* Knowledge Base Section */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider">Knowledge Base</h3>
+            
+
+            <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
+              {documents.map((doc, idx) => {
+                const isActive = activeFiles.includes(doc);
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => onToggleActiveFile(doc)}
+                    className={`
+                      flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors border text-xs
+                      ${isActive 
+                        ? 'bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-900/20 dark:border-brand-800 dark:text-brand-400' 
+                        : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 dark:bg-surface-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-surface-800'}
+                    `}
+                    title={isActive ? "Click to disable for this chat" : "Click to enable for this chat"}
+                  >
+                    <FileText className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}`} />
+                    <span className="truncate flex-1">{doc}</span>
+                    {isActive && <span className="text-[10px] bg-brand-500 text-white rounded-full px-1.5 py-0.2">Active</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recent Chats Section */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider">Recent Chats</h3>
+            <div className="space-y-1">
+              {conversations.length === 0 ? (
+                <p className="text-xs text-slate-400 dark:text-slate-500 italic px-2">No recent chats</p>
+              ) : (
+                conversations.map(conv => (
+                  <div 
+                    key={conv.id}
+                    className={`
+                      group flex items-center justify-between rounded-lg p-2 text-sm font-medium cursor-pointer transition-colors
+                      ${currentConversationId === conv.id 
+                        ? 'bg-slate-200 dark:bg-surface-700 text-slate-900 dark:text-slate-100' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-900'}
+                    `}
+                    onClick={() => {
+                      onSelectConversation(conv.id);
+                      onClose();
+                    }}
+                  >
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <MessageSquare className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                      <span className="truncate">{conv.title}</span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteConversation(conv.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-300 dark:hover:bg-surface-800 text-slate-400 hover:text-red-500 transition-all"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

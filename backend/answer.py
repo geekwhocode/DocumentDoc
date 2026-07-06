@@ -116,22 +116,35 @@ def merge_chunks(chunks, reranked):
             merged.append(chunk)
     return merged
 
-def fetch_context_unranked(question):
+def fetch_context_unranked(question, active_files=None):
     """
     Retrieves the top K most relevant chunks from ChromaDB for a given query string,
     using cosine similarity on HuggingFace embeddings without any LLM reranking.
+    Optionally filters by source filename list in active_files.
     """
     if collection.count() == 0:
         return []
     query_vector = embedding_model.encode([question]).tolist()[0]
-    results = collection.query(query_embeddings=[query_vector], n_results=min(RETRIEVAL_K, collection.count()))
+    
+    where_clause = None
+    if active_files:
+        if len(active_files) == 1:
+            where_clause = {"source": active_files[0]}
+        else:
+            where_clause = {"source": {"$in": active_files}}
+
+    results = collection.query(
+        query_embeddings=[query_vector], 
+        n_results=min(RETRIEVAL_K, collection.count()),
+        where=where_clause
+    )
     chunks = []
     if results["documents"] and results["documents"][0]:
         for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
             chunks.append(Result(page_content=doc, metadata=meta))
     return chunks
 
-def fetch_context(original_question, history, model):
+def fetch_context(original_question, history, model, active_files=None):
     """
     Orchestrates the full context retrieval pipeline:
     1. Rewrites the query.
@@ -142,18 +155,18 @@ def fetch_context(original_question, history, model):
     if collection.count() == 0:
         return []
     rewritten_question = rewrite_query(original_question, history, model)
-    chunks1 = fetch_context_unranked(original_question)
-    chunks2 = fetch_context_unranked(rewritten_question)
+    chunks1 = fetch_context_unranked(original_question, active_files)
+    chunks2 = fetch_context_unranked(rewritten_question, active_files)
     chunks = merge_chunks(chunks1, chunks2)
     reranked = rerank(original_question, chunks, model)
     return reranked[:FINAL_K]
 
-def answer_question(question: str, history: list[dict], model: str) -> tuple[str, list]:
+def answer_question(question: str, history: list[dict], model: str, active_files: list[str] = None) -> tuple[str, list]:
     """
     Executes the full RAG pipeline: retrieves relevant context for the user's question,
     generates an answer using the chosen LLM, and returns both the answer and context.
     """
-    chunks = fetch_context(question, history, model)
+    chunks = fetch_context(question, history, model, active_files)
     messages = make_rag_messages(question, history, chunks)
     response = completion(model=model, messages=messages)
     return response.choices[0].message.content, chunks
