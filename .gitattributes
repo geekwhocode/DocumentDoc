@@ -1,0 +1,3 @@
+# Exclude frontend files from GitHub language statistics
+# This ensures GitHub showcases Python as the primary language of the repository.
+frontend/** linguist-vendored
