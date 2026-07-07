@@ -28,7 +28,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     question: str
     history: list[dict] = []
-    model: str = "gemini/gemini-2.5-flash"
+    model: str = "groq/llama-3.3-70b-versatile"
     conversation_id: str | None = None
     active_files: list[str] | None = None
 
@@ -61,8 +61,22 @@ def get_documents():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/documents/{filename}")
+def delete_document(filename: str):
+    """
+    Deletes all vector chunks and metadata associated with a given filename from ChromaDB.
+    """
+    try:
+        if collection.count() == 0:
+            return {"status": "success", "message": "Collection is empty."}
+        
+        collection.delete(where={"source": filename})
+        return {"status": "success", "message": f"Document '{filename}' successfully deleted."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), model: str = Form("gemini/gemini-2.5-flash")):
+async def upload_file(file: UploadFile = File(...), model: str = Form("groq/llama-3.3-70b-versatile")):
     """
     Endpoint for uploading documents (PDF, DOCX, TXT).
     Saves the file to a temporary location and triggers the ingestion pipeline.

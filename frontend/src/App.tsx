@@ -23,13 +23,13 @@ function App() {
   const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       setSession(session);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setSession(session);
     });
 
@@ -96,7 +96,7 @@ function App() {
     const uploadPromises = Array.from(files).map(async (file) => {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('model', 'gemini/gemini-2.5-flash');
+      formData.append('model', 'groq/llama-3.3-70b-versatile');
 
       try {
         await axios.post('http://localhost:8000/upload', formData, {
@@ -171,6 +171,17 @@ function App() {
     }
   };
 
+  const handleDeleteDocument = async (filename: string) => {
+    try {
+      await axios.delete(`http://localhost:8000/documents/${encodeURIComponent(filename)}`);
+      setActiveFiles(prev => prev.filter(f => f !== filename));
+      fetchGlobalDocuments();
+    } catch (e) {
+      console.error("Failed to delete document:", e);
+      alert("Failed to delete document from database.");
+    }
+  };
+
   const handleNewChat = () => {
     setCurrentConversationId(null);
     setActiveFiles([]);
@@ -202,6 +213,7 @@ function App() {
         documents={globalDocuments}
         activeFiles={activeFiles}
         onToggleActiveFile={handleToggleActiveFile}
+        onDeleteDocument={handleDeleteDocument}
         conversations={conversations}
         currentConversationId={currentConversationId}
         onSelectConversation={setCurrentConversationId}
@@ -209,17 +221,17 @@ function App() {
         onNewChat={handleNewChat}
       />
       <div className="flex-1 flex flex-col relative">
-        <header className="absolute top-0 right-0 p-4 z-10 flex gap-4 items-center">
+        <header className="absolute top-0 right-0 p-4 z-10 flex gap-3 items-center">
           <button 
             onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-surface-700 transition-colors"
             title="Toggle Theme"
           >
             {darkMode ? '☀️' : '🌙'}
           </button>
           <button 
             onClick={() => supabase.auth.signOut()}
-            className="text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+            className="px-4 py-2 text-xs font-semibold rounded-full border border-slate-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-700 hover:text-slate-900 dark:hover:text-white transition-all"
           >
             Sign out
           </button>

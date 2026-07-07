@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, User, Plus, Menu, FileText } from 'lucide-react';
+import { Send, Loader2, Bot, User, Plus, Menu, FileText, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 
@@ -25,9 +25,10 @@ export default function ChatInterface({
   onRemoveActiveFile
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
-  const [model, setModel] = useState('gemini/gemini-2.5-flash');
+  const [model, setModel] = useState('groq/llama-3.3-70b-versatile');
   const [models, setModels] = useState<{id: string, name: string}[]>([]);
   const [showMenu, setShowMenu] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -225,9 +226,22 @@ export default function ChatInterface({
                 <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand-500'}`}>
                   {msg.role === 'user' ? <User className="h-5 w-5 text-slate-600 dark:text-slate-300" /> : <Bot className="h-5 w-5 text-white" />}
                 </div>
-                <div className={`flex-1 prose dark:prose-invert max-w-none ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  <div className={`inline-block rounded-2xl p-4 ${msg.role === 'user' ? 'bg-brand-500 text-white' : 'bg-white dark:bg-surface-800 shadow-sm border border-slate-100 dark:border-slate-700'}`}>
+                <div className={`flex-1 max-w-none ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`inline-block rounded-2xl p-4 prose dark:prose-invert ${msg.role === 'user' ? 'bg-brand-500 text-white' : 'bg-white dark:bg-surface-800 shadow-sm border border-slate-100 dark:border-slate-700'}`}>
                     {msg.role === 'user' ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
+                  </div>
+                  <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(msg.content);
+                        setCopiedIdx(idx);
+                        setTimeout(() => setCopiedIdx(null), 1500);
+                      }}
+                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-surface-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors inline-flex items-center gap-1"
+                      title="Copy to clipboard"
+                    >
+                      {copiedIdx === idx ? <Check className="h-3.5 w-3.5 text-brand-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { FileText, X, Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { FileText, X, Plus, MessageSquare, Trash2, BookOpen } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -6,6 +6,7 @@ interface SidebarProps {
   documents: string[];
   activeFiles: string[];
   onToggleActiveFile: (filename: string) => void;
+  onDeleteDocument: (filename: string) => void;
   conversations: { id: string; title: string }[];
   currentConversationId: string | null;
   onSelectConversation: (id: string | null) => void;
@@ -19,6 +20,7 @@ export default function Sidebar({
   documents, 
   activeFiles,
   onToggleActiveFile,
+  onDeleteDocument,
   conversations,
   currentConversationId,
   onSelectConversation,
@@ -42,7 +44,7 @@ export default function Sidebar({
         <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">✨</span>
+              <BookOpen className="h-5 w-5 text-white" />
             </div>
             <h2 className="font-semibold text-lg">DocumentDoc</h2>
           </div>
@@ -73,27 +75,46 @@ export default function Sidebar({
             <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider">Knowledge Base</h3>
             
 
-            <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
-              {documents.map((doc, idx) => {
-                const isActive = activeFiles.includes(doc);
-                return (
-                  <div 
-                    key={idx} 
-                    onClick={() => onToggleActiveFile(doc)}
-                    className={`
-                      flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors border text-xs
-                      ${isActive 
-                        ? 'bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-900/20 dark:border-brand-800 dark:text-brand-400' 
-                        : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 dark:bg-surface-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-surface-800'}
-                    `}
-                    title={isActive ? "Click to disable for this chat" : "Click to enable for this chat"}
-                  >
-                    <FileText className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}`} />
-                    <span className="truncate flex-1">{doc}</span>
-                    {isActive && <span className="text-[10px] bg-brand-500 text-white rounded-full px-1.5 py-0.2">Active</span>}
-                  </div>
-                );
-              })}
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {documents.length === 0 ? (
+                <p className="text-xs text-slate-400 dark:text-slate-500 italic px-2">No documents uploaded</p>
+              ) : (
+                documents.map((doc, idx) => {
+                  const isActive = activeFiles.includes(doc);
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`
+                        group flex items-center gap-2 p-2 rounded-lg transition-colors border text-xs
+                        ${isActive 
+                          ? 'bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-900/20 dark:border-brand-800 dark:text-brand-400' 
+                          : 'bg-white border-slate-100 text-slate-700 dark:bg-surface-900 dark:border-slate-700 dark:text-slate-300'}
+                      `}
+                    >
+                      <div 
+                        className="flex items-center gap-2 truncate flex-1 cursor-pointer hover:opacity-80"
+                        onClick={() => onToggleActiveFile(doc)}
+                        title={isActive ? "Click to disable for this chat" : "Click to enable for this chat"}
+                      >
+                        <FileText className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}`} />
+                        <span className="truncate">{doc}</span>
+                        {isActive && <span className="text-[9px] bg-brand-500 text-white rounded-full px-1.5 shrink-0">Active</span>}
+                      </div>
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteDocument(doc);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-all shrink-0"
+                        title="Delete document from Knowledge Base"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
