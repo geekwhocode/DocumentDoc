@@ -96,7 +96,7 @@ export default function Auth() {
 
         <button
           onClick={handleGoogleSignIn}
-          className="mt-6 w-full py-2 px-4 border dark:border-slate-700 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="mt-6 w-full py-2 px-4 border dark:border-slate-700 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-surface-700 transition-colors"
         >
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-5 w-5" />
           Google
