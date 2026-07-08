@@ -13,7 +13,7 @@
 
 ## 🌟 Introduction
 
-**DocumentDoc** is an advanced, production-grade Retrieval-Augmented Generation (RAG) chat application. It allows users to upload unstructured documents (PDFs, Word documents, text files), automatically processes them into semantic vectors, and enables a highly interactive, context-aware conversational interface. 
+**DocumentDoc** is an advanced, production-grade **Full-Stack RAG (Retrieval-Augmented Generation) Application**. It allows users to upload unstructured documents (PDFs, Word documents, text files), automatically processes them into semantic vectors, and enables a highly interactive, context-aware conversational interface.
 
 Inspired by modern AI assistant interfaces, it features a premium UI with rich transitions, clean light/dark modes, and sleek layouts — coupled with a robust, enterprise-ready Python backend.
 
