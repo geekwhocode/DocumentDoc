@@ -14,7 +14,7 @@ function App() {
   // Attached files for the current conversation session
   const [activeFiles, setActiveFiles] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Chat history states
   const [conversations, setConversations] = useState<{ id: string; title: string }[]>([]);
@@ -128,34 +128,155 @@ function App() {
   };
 
   const handleSendMessage = async (text: string, model: string) => {
+    // Prevent sending empty queries or submitting while another query is in progress
     if (!text.trim() || chatLoading) return;
 
+    // 1. Immediately append the user's message to the chat history UI
     setMessages(prev => [...prev, { role: 'user', content: text }]);
     setChatLoading(true);
+    
+    // 2. Pre-allocate an empty assistant chat message bubble in the UI.
+    // We will progressively stream the LLM response text into this empty bubble.
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
+      // Exclude system messages (errors) from history to avoid polluting LLM context window
       const history = messages.filter(m => m.role !== 'system');
-      const response = await axios.post('http://localhost:8000/chat', {
-        question: text,
-        history,
-        model,
-        conversation_id: currentConversationId,
-        active_files: activeFiles // Filter backend RAG search by active files!
+      
+      // We use the browser's native fetch API rather than Axios because Axios does not support
+      // reading streaming response bodies chunk-by-chunk natively in web browsers.
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: text,
+          history,
+          model,
+          conversation_id: currentConversationId,
+          active_files: activeFiles
+        })
       });
 
-      const { answer, conversation_id } = response.data;
-      setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
-      
-      if (!currentConversationId) {
-        setCurrentConversationId(conversation_id);
+      // Handle non-2xx HTTP responses (e.g., 429 Rate Limits, 500 Server Errors)
+      if (!response.ok) {
+        let errMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData?.detail) errMsg = errData.detail;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      // Establish a reader to read the response body as a stream of binary data chunks (Uint8Arrays)
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('ReadableStream not supported on response.');
+      }
+
+      const decoder = new TextDecoder(); // Decodes the stream bytes back to UTF-8 text strings
+      let buffer = '';                   // Temporary buffer to hold partial Server-Sent Events (SSE) lines
+      let streamConvId: string | null = null;
+      let accumulatedContent = '';       // Stores the full response text as it builds up
+
+      // Main read loop: processes binary chunks until the stream is completely consumed
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break; // Stream is finished
+
+        // Decode the chunk value (Uint8Array) and append it to our buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Split the buffer by newlines to extract individual SSE lines
+        const lines = buffer.split('\n');
+        
+        // The last element of lines might be an incomplete SSE line (e.g. data: {"content": "he... no closing braces).
+        // We pop it off and store it back in our buffer to be completed by the next chunk.
+        buffer = lines.pop() || '';
+
+        // Process completed lines
+        for (const line of lines) {
+          const trimmed = line.trim();
+          // SSE events in our API are prefixed with "data: "
+          if (!trimmed.startsWith('data: ')) continue;
+          
+          const rawData = trimmed.slice(6); // Extract the JSON payload after the "data: " prefix
+          try {
+            const dataObj = JSON.parse(rawData);
+            
+            // Check the SSE event structure type
+            if (dataObj.type === 'conversation_id') {
+              // Store conversation id returned for a new chat
+              streamConvId = dataObj.conversation_id;
+            } else if (dataObj.type === 'content') {
+              // Append newly generated LLM token/chunk to the total accumulated text
+              const newContent = dataObj.content;
+              accumulatedContent += newContent;
+              
+              // Dynamically update React state to re-render the assistant message bubble in the UI
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                // Double check that the last message is indeed the pre-allocated assistant message
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+                }
+                return updated;
+              });
+            } else if (dataObj.type === 'error') {
+              // Handle runtime exceptions from backend LLM calls (e.g., API key failures, rate limits)
+              throw new Error(dataObj.error);
+            }
+          } catch (err) {
+            console.error('Error parsing SSE chunk:', err);
+          }
+        }
+      }
+
+      // Final sweep: process any trailing data remaining in the buffer
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data: ')) {
+          const rawData = trimmed.slice(6);
+          try {
+            const dataObj = JSON.parse(rawData);
+            if (dataObj.type === 'content') {
+              accumulatedContent += dataObj.content;
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+                }
+                return updated;
+              });
+            }
+          } catch (e) {}
+        }
+      }
+
+      // If this was a new chat conversation, update the global state with the conversation id
+      // and refresh the sidebar conversation list to display the new chat title
+      if (!currentConversationId && streamConvId) {
+        setCurrentConversationId(streamConvId);
         fetchConversations();
       }
+
     } catch (error: any) {
       console.error('Chat failed:', error);
-      const errMsg = error.response?.data?.detail || 'Failed to get response. Please wait a few seconds and try again.';
-      setMessages(prev => [...prev, { role: 'system', content: errMsg }]);
+      const errMsg = error.message || 'Failed to get response. Please wait a few seconds and try again.';
+      setMessages(prev => {
+        const updated = [...prev];
+        // If the request failed before the LLM could stream anything, remove the empty assistant bubble
+        if (updated.length > 0 && updated[updated.length - 1].role === 'assistant' && !updated[updated.length - 1].content) {
+          updated.pop();
+        }
+        // Append a system notification bubble with the error message in the chat
+        return [...updated, { role: 'system', content: errMsg }];
+      });
     } finally {
-      setChatLoading(false);
+      setChatLoading(false); // Enable input submission again
     }
   };
 
