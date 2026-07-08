@@ -1,11 +1,13 @@
 import os
 import tempfile
 import shutil
+import json
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from ingest import run_ingestion
-from answer import answer_question, collection
+from answer import answer_question, answer_question_stream, collection
 from dotenv import load_dotenv
 import database
 
@@ -107,41 +109,43 @@ def chat(request: ChatRequest):
             conversation_id = database.create_conversation(title=request.question)
             is_new = True
 
-        try:
-            # We run RAG and call the LLM, passing active_files filter
-            answer, chunks = answer_question(request.question, request.history, request.model, request.active_files)
-            
-            # Save user and assistant messages to database only if call succeeds
-            database.save_message(conversation_id, "user", request.question)
-            database.save_message(conversation_id, "assistant", answer)
+        chunks, stream_gen = answer_question_stream(request.question, request.history, request.model, request.active_files)
+        
+        sources = [chunk.metadata["source"] for chunk in chunks] if chunks else []
+        unique_sources = list(set(sources))
 
-            # Update title if it was an existing chat but history was empty
-            if not is_new and len(request.history) == 0:
-                database.update_conversation_title(conversation_id, request.question)
-
-            sources = [chunk.metadata["source"] for chunk in chunks] if chunks else []
-            unique_sources = list(set(sources))
-            return {
-                "answer": answer,
-                "sources": unique_sources,
-                "conversation_id": conversation_id
-            }
-        except Exception as api_err:
-            # If it failed and this was a new chat, delete the empty conversation to avoid polluting sidebar
-            if is_new:
-                database.delete_conversation(conversation_id)
+        def response_generator():
+            full_answer = []
+            yield f"data: {json.dumps({'type': 'sources', 'sources': unique_sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation_id})}\n\n"
             
-            err_msg = str(api_err)
-            # Check for Rate Limit or Quota errors
-            if "rate_limit" in err_msg.lower() or "429" in err_msg or "quota" in err_msg.lower() or "exhausted" in err_msg.lower():
-                raise HTTPException(
-                    status_code=429,
-                    detail="Gemini API rate limit reached. Please wait a few seconds and try again."
-                )
-            else:
-                raise HTTPException(status_code=500, detail=f"LLM API Error: {err_msg}")
-    except HTTPException as he:
-        raise he
+            try:
+                for text_chunk in stream_gen:
+                    full_answer.append(text_chunk)
+                    yield f"data: {json.dumps({'type': 'content', 'content': text_chunk})}\n\n"
+                
+                assistant_answer = "".join(full_answer)
+                database.save_message(conversation_id, "user", request.question)
+                database.save_message(conversation_id, "assistant", assistant_answer)
+                
+                if not is_new and len(request.history) == 0:
+                    database.update_conversation_title(conversation_id, request.question)
+                
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            except Exception as api_err:
+                if is_new:
+                    try:
+                        database.delete_conversation(conversation_id)
+                    except:
+                        pass
+                err_msg = str(api_err)
+                if "rate_limit" in err_msg.lower() or "429" in err_msg or "quota" in err_msg.lower() or "exhausted" in err_msg.lower():
+                    detail = "Gemini API rate limit reached. Please wait a few seconds and try again."
+                else:
+                    detail = f"LLM API Error: {err_msg}"
+                yield f"data: {json.dumps({'type': 'error', 'error': detail})}\n\n"
+
+        return StreamingResponse(response_generator(), media_type="text/event-stream")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

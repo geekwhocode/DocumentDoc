@@ -170,3 +170,22 @@ def answer_question(question: str, history: list[dict], model: str, active_files
     messages = make_rag_messages(question, history, chunks)
     response = completion(model=model, messages=messages)
     return response.choices[0].message.content, chunks
+
+
+def answer_question_stream(question: str, history: list[dict], model: str, active_files: list[str] = None):
+    """
+    Executes the retrieval and reranking steps, then returns the context chunks
+    and a generator yielding text chunks from the streaming completion.
+    """
+    chunks = fetch_context(question, history, model, active_files)
+    messages = make_rag_messages(question, history, chunks)
+    
+    def generator():
+        response = completion(model=model, messages=messages, stream=True)
+        for part in response:
+            content = part.choices[0].delta.content
+            if content:
+                yield content
+                
+    return chunks, generator()
+
