@@ -68,6 +68,7 @@ function App() {
     if (session) {
       fetchConversations();
       fetchGlobalDocuments();
+      setSidebarOpen(false);
     }
   }, [session]);
 
