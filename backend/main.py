@@ -2,7 +2,9 @@ import os
 import tempfile
 import shutil
 import json
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import time
+from collections import defaultdict
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -26,6 +28,77 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Rate Limiter – protects free-tier API keys from excessive usage
+# ---------------------------------------------------------------------------
+class RateLimiter:
+    """
+    In-memory, per-IP rate limiter with hourly, daily (per-user) and global
+    daily caps.  Timestamps older than the current window are lazily pruned
+    on each check so memory stays bounded.
+    """
+
+    def __init__(
+        self,
+        per_user_hourly: int = 10,
+        per_user_daily: int = 30,
+        global_daily: int = 400,
+    ):
+        self.per_user_hourly = per_user_hourly
+        self.per_user_daily = per_user_daily
+        self.global_daily = global_daily
+        # Each value is a list of Unix timestamps recording past requests
+        self._user_hits: dict[str, list[float]] = defaultdict(list)
+        self._global_hits: list[float] = []
+
+    def _prune(self, timestamps: list[float], window: float) -> list[float]:
+        """Remove entries older than `window` seconds."""
+        cutoff = time.time() - window
+        return [t for t in timestamps if t > cutoff]
+
+    def check(self, client_ip: str) -> str | None:
+        """
+        Returns None if the request is allowed, or an error message string
+        describing which limit was exceeded.
+        """
+        now = time.time()
+        hour = 3600
+        day = 86400
+
+        # --- global daily cap ---
+        self._global_hits = self._prune(self._global_hits, day)
+        if len(self._global_hits) >= self.global_daily:
+            return "Global daily limit reached. Please try again tomorrow."
+
+        # --- per-user hourly cap ---
+        user_ts = self._user_hits[client_ip]
+        user_ts_pruned = self._prune(user_ts, day)  # prune to daily window
+        self._user_hits[client_ip] = user_ts_pruned
+
+        recent_hour = [t for t in user_ts_pruned if t > now - hour]
+        if len(recent_hour) >= self.per_user_hourly:
+            return "You've reached the hourly limit (10 requests/hour). Please wait a bit."
+
+        if len(user_ts_pruned) >= self.per_user_daily:
+            return "You've reached the daily limit (30 requests/day). Please try again tomorrow."
+
+        # --- record hit ---
+        self._user_hits[client_ip].append(now)
+        self._global_hits.append(now)
+        return None
+
+
+rate_limiter = RateLimiter()
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract the real client IP, respecting reverse-proxy headers."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 
 class ChatRequest(BaseModel):
     question: str
@@ -78,11 +151,17 @@ def delete_document(filename: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), model: str = Form("groq/llama-3.3-70b-versatile")):
+async def upload_file(request: Request, file: UploadFile = File(...), model: str = Form("groq/llama-3.3-70b-versatile")):
     """
     Endpoint for uploading documents (PDF, DOCX, TXT).
     Saves the file to a temporary location and triggers the ingestion pipeline.
+    Rate-limited to protect free-tier API keys.
     """
+    # --- rate limit check ---
+    limit_msg = rate_limiter.check(_get_client_ip(request))
+    if limit_msg:
+        raise HTTPException(status_code=429, detail=limit_msg)
+
     try:
         suffix = os.path.splitext(file.filename)[1]
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -96,12 +175,18 @@ async def upload_file(file: UploadFile = File(...), model: str = Form("groq/llam
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, raw_request: Request):
     """
     Endpoint for handling user chat queries.
     Invokes the RAG pipeline and returns the AI-generated answer along with source document metadata.
     Also saves messages to the local SQLite database.
+    Rate-limited to protect free-tier API keys.
     """
+    # --- rate limit check ---
+    limit_msg = rate_limiter.check(_get_client_ip(raw_request))
+    if limit_msg:
+        raise HTTPException(status_code=429, detail=limit_msg)
+
     try:
         conversation_id = request.conversation_id
         is_new = False
