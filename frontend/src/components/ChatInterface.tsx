@@ -222,7 +222,7 @@ export default function ChatInterface({
           {/* Main chat window */}
           <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pt-20">
             {messages.map((msg, idx) => (
-              <div key={idx} className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div key={idx} className={`flex gap-4 max-w-3xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand-500'}`}>
                   {msg.role === 'user' ? <User className="h-5 w-5 text-slate-600 dark:text-slate-300" /> : <Bot className="h-5 w-5 text-white" />}
                 </div>
@@ -247,7 +247,7 @@ export default function ChatInterface({
               </div>
             ))}
             {loading && !(messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content) && (
-              <div className="flex gap-4 max-w-4xl mx-auto">
+              <div className="flex gap-4 max-w-3xl mx-auto">
                 <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
                   <Bot className="h-5 w-5 text-white" />
                 </div>
