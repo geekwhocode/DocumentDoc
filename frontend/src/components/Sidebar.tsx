@@ -37,9 +37,13 @@ export default function Sidebar({
         />
       )}
       <div className={`
-        fixed inset-y-0 left-0 z-20 w-64 bg-surface-100 dark:bg-surface-800 border-r border-slate-200 dark:border-slate-700 
-        flex flex-col h-full transition-transform duration-300 md:relative md:translate-x-0
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:hidden'}
+        fixed inset-y-0 left-0 z-20 bg-surface-100 dark:bg-surface-800 border-r border-slate-200 dark:border-slate-700 
+        flex flex-col h-full transition-all duration-300 ease-in-out
+        md:relative md:translate-x-0
+        ${isOpen 
+          ? 'w-64 translate-x-0 opacity-100' 
+          : '-translate-x-full opacity-0 w-64 md:translate-x-0 md:w-0 md:opacity-0 md:border-r-0 overflow-hidden pointer-events-none'
+        }
       `}>
         <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2">
