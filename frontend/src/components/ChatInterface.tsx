@@ -246,7 +246,7 @@ export default function ChatInterface({
                 </div>
               </div>
             ))}
-            {loading && (
+            {loading && !(messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content) && (
               <div className="flex gap-4 max-w-4xl mx-auto">
                 <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
                   <Bot className="h-5 w-5 text-white" />
