@@ -34,7 +34,7 @@ Inspired by modern AI assistant interfaces, it features a premium UI with rich t
     *   *Query Rewriting:* Utilizes an LLM to refine user queries into standalone search questions optimized for vector search.
     *   *Ensemble Retrieval:* Queries ChromaDB vector store with HuggingFace embeddings (`all-MiniLM-L6-v2`) for both the original and rewritten queries, merging results cleanly.
     *   *LLM Reranking:* Reranks candidate document chunks using LiteLLM to ensure only the top $K$ most contextually relevant passages are supplied to the generation model.
-*   **💬 Dynamic Model Selector:** Switch on-the-fly between LLM providers (e.g., **Llama 3.3 via Groq** and other supported models) for both chat responses and RAG processes.
+*   **💬 Dynamic Model Selector:** Switch on-the-fly between LLM providers (e.g., **Gemini 2.5 Flash** and **Llama 3.3 via Groq**) for both chat responses and RAG processes.
 *   **📂 Session-Specific File Filtering:** Attach or detach uploaded knowledge base documents dynamically to scope queries to specific files.
 *   **💾 Conversation Persistence:** Integrated SQLite storage for saving chat histories and maintaining persistent sessions across reloads.
 *   **🎨 Premium UI/UX:** Styled using custom Vanilla CSS and Tailwind CSS, featuring smooth transitions, adaptive themes, side-drawers, and responsive layouts.
@@ -68,7 +68,7 @@ graph TD
         H --> I[Merge Chunks & De-duplicate]:::backend
         I --> J[LiteLLM Reranker]:::backend
         J --> K[Construct Context-Augmented Prompt]:::backend
-        K --> L[LLM Generation]:::backend
+        K --> L[LLM Generation (Gemini / Llama 3)]:::backend
         L --> M[SQLite Save Message]:::db
         L --> N[Stream Answer to UI]:::frontend
     end
@@ -85,7 +85,7 @@ graph TD
 | **Backend** | FastAPI (Python) | High-performance asynchronous API framework with automated OpenAPI validation. |
 | **Vector DB** | ChromaDB | Lightweight, high-performance local vector database, perfect for persistent semantic querying. |
 | **Embeddings** | HuggingFace (`all-MiniLM-L6-v2`) | Local execution (no API costs) with great semantic representation. |
-| **LLM Gateway** | LiteLLM | Standardized OpenAI-format endpoint abstraction supporting multiple providers and custom APIs. |
+| **LLM Gateway** | LiteLLM | Standardized OpenAI-format endpoint abstraction supporting Gemini, Groq, and custom APIs. |
 | **Auth** | Supabase Auth (Mock/Live) | Drop-in enterprise authentication supporting OAuth and magic link logins. |
 
 ---
@@ -129,7 +129,7 @@ graph TD
 1. Create a `.env` file in the root directory:
    ```env
    # LLM Keys
-   GOOGLE_API_KEY=your_google_api_key_here
+   GOOGLE_API_KEY=your_gemini_api_key_here
    GROQ_API_KEY=your_groq_api_key_here
    
    # Supabase Keys (Optional: Falls back to offline mock auth if left empty)
