@@ -1,4 +1,4 @@
-# <p align="center"><img src="docs/assets/documentdoc_banner.png" alt="DocumentDoc Banner" width="100%"></p>
+<p align="center"><img src="docs/assets/documentdoc_banner.png" alt="DocumentDoc Banner" width="100%"></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React">
