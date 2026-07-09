@@ -39,6 +39,7 @@ Inspired by modern AI assistant interfaces, it features a premium UI with rich t
 *   **💾 Conversation Persistence:** Integrated SQLite storage for saving chat histories and maintaining persistent sessions across reloads.
 *   **🎨 Premium UI/UX:** Styled using custom Vanilla CSS and Tailwind CSS, featuring smooth transitions, adaptive themes, side-drawers, and responsive layouts.
 *   **🔒 Mock Authentication Layer:** Easily runs locally with a fully functional Supabase configuration or a custom mock authentication system for instant evaluation.
+*   **🛡️ Live RAG Quality Evaluation:** Programmatically evaluates RAG responses in real-time for **Faithfulness** and **Answer Relevancy** using **DeepEval (by Confident AI)** with Llama 3.3 (via Groq) acting as the judge, exposing dynamic metrics badges and reasoning accordions in the UI.
 
 ---
 
@@ -87,6 +88,7 @@ graph TD
 | **Embeddings** | HuggingFace (`all-MiniLM-L6-v2`) | Local execution (no API costs) with great semantic representation. |
 | **LLM Gateway** | LiteLLM | Standardized OpenAI-format endpoint abstraction supporting Gemini, Groq, and custom APIs. |
 | **Auth** | Supabase Auth (Mock/Live) | Drop-in enterprise authentication supporting OAuth and magic link logins. |
+| **Evaluation** | DeepEval (Confident AI) | Real-time RAG observability (Faithfulness, Answer Relevancy) using LLM-as-a-judge (Llama 3.3 via Groq). |
 
 ---
 

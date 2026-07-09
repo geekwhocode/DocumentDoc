@@ -294,6 +294,10 @@ export default function ChatInterface({
                           </p>
                         </div>
                       )}
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50 flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                        <span>Evaluator: Llama 3.3 (Groq)</span>
+                        <span className="text-brand-500 dark:text-brand-400">RAG Observability via DeepEval</span>
+                      </div>
                     </div>
                   )}
                 </div>
