@@ -13,3 +13,5 @@ chromadb_data/
 tmp/
 *.db
 *.log
+.deepeval/
+
