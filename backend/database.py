@@ -29,6 +29,19 @@ def init_db():
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
             )
         """)
+        
+        # Dynamic Schema Migration for Live Evaluations
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(messages)")
+        columns = [row["name"] for row in cursor.fetchall()]
+        
+        if "faithfulness_score" not in columns:
+            conn.execute("ALTER TABLE messages ADD COLUMN faithfulness_score REAL")
+        if "relevancy_score" not in columns:
+            conn.execute("ALTER TABLE messages ADD COLUMN relevancy_score REAL")
+        if "evaluation_reason" not in columns:
+            conn.execute("ALTER TABLE messages ADD COLUMN evaluation_reason TEXT")
+            
         conn.commit()
 
 def create_conversation(title="New Chat"):
@@ -50,7 +63,7 @@ def get_conversations():
 def get_messages(conversation_id):
     with get_db_connection() as conn:
         cursor = conn.execute(
-            "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id ASC",
+            "SELECT role, content, faithfulness_score, relevancy_score, evaluation_reason FROM messages WHERE conversation_id = ? ORDER BY id ASC",
             (conversation_id,)
         )
         rows = cursor.fetchall()
@@ -58,9 +71,22 @@ def get_messages(conversation_id):
 
 def save_message(conversation_id, role, content):
     with get_db_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)",
             (conversation_id, role, content)
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+def update_message_evaluation(message_id, faithfulness_score, relevancy_score, evaluation_reason):
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            UPDATE messages 
+            SET faithfulness_score = ?, relevancy_score = ?, evaluation_reason = ?
+            WHERE id = ?
+            """,
+            (faithfulness_score, relevancy_score, evaluation_reason, message_id)
         )
         conn.commit()
 

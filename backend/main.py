@@ -211,10 +211,50 @@ def chat(request: ChatRequest, raw_request: Request):
                 
                 assistant_answer = "".join(full_answer)
                 database.save_message(conversation_id, "user", request.question)
-                database.save_message(conversation_id, "assistant", assistant_answer)
+                assistant_msg_id = database.save_message(conversation_id, "assistant", assistant_answer)
                 
                 if not is_new and len(request.history) == 0:
                     database.update_conversation_title(conversation_id, request.question)
+                
+                # Perform Live DeepEval Evaluation using Groq Llama 3.3
+                try:
+                    from deepeval.metrics import FaithfulnessMetric, AnswerRelevancyMetric
+                    from deepeval.test_case import LLMTestCase
+                    from tests.eval_llm import LiteLLMEvaluator
+                    
+                    evaluator = LiteLLMEvaluator(model_name="groq/llama-3.3-70b-versatile")
+                    faithfulness_metric = FaithfulnessMetric(threshold=0.0, model=evaluator)
+                    relevancy_metric = AnswerRelevancyMetric(threshold=0.0, model=evaluator)
+                    
+                    test_case = LLMTestCase(
+                        input=request.question,
+                        actual_output=assistant_answer,
+                        retrieval_context=[chunk.page_content for chunk in chunks] if chunks else []
+                    )
+                    
+                    # Run metrics (synchronously on generator stream)
+                    faithfulness_metric.measure(test_case)
+                    relevancy_metric.measure(test_case)
+                    
+                    f_score = faithfulness_metric.score
+                    f_reason = faithfulness_metric.reason
+                    r_score = relevancy_metric.score
+                    r_reason = relevancy_metric.reason
+                    
+                    combined_reason = f"Faithfulness Analysis:\n{f_reason}\n\nRelevancy Analysis:\n{r_reason}"
+                    
+                    # Update message record with evaluation metrics
+                    database.update_message_evaluation(
+                        message_id=assistant_msg_id,
+                        faithfulness_score=f_score,
+                        relevancy_score=r_score,
+                        evaluation_reason=combined_reason
+                    )
+                    
+                    # Broadcast evaluations to UI before sending 'done'
+                    yield f"data: {json.dumps({'type': 'evaluation', 'faithfulness_score': f_score, 'relevancy_score': r_score, 'evaluation_reason': combined_reason})}\n\n"
+                except Exception as eval_err:
+                    print(f"Failed to run live RAG evaluation: {eval_err}")
                 
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             except Exception as api_err:

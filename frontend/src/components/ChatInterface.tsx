@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, User, Plus, Menu, FileText, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Bot, User, Plus, Menu, FileText, Copy, Check, Shield, ChevronUp, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 
@@ -29,6 +29,7 @@ export default function ChatInterface({
   const [models, setModels] = useState<{id: string, name: string}[]>([]);
   const [showMenu, setShowMenu] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [expandedEvalIdx, setExpandedEvalIdx] = useState<number | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,7 +231,7 @@ export default function ChatInterface({
                   <div className={`inline-block rounded-2xl p-4 prose dark:prose-invert ${msg.role === 'user' ? 'bg-brand-500 text-white' : 'bg-white dark:bg-surface-800 shadow-sm border border-slate-100 dark:border-slate-700'}`}>
                     {msg.role === 'user' ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
                   </div>
-                  <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left flex items-center gap-2'}`}>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(msg.content);
@@ -242,7 +243,59 @@ export default function ChatInterface({
                     >
                       {copiedIdx === idx ? <Check className="h-3.5 w-3.5 text-brand-500" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
+
+                    {msg.role === 'assistant' && msg.faithfulness_score !== undefined && msg.faithfulness_score !== null && (
+                      <button
+                        onClick={() => setExpandedEvalIdx(expandedEvalIdx === idx ? null : idx)}
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${
+                          msg.faithfulness_score >= 0.8
+                            ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/50'
+                            : msg.faithfulness_score >= 0.6
+                            ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 hover:bg-amber-100/50'
+                            : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-400 hover:bg-rose-100/50'
+                        }`}
+                        title="RAG Evaluation (DeepEval)"
+                      >
+                        <Shield className="h-3 w-3" />
+                        <span>Grounded: {Math.round(msg.faithfulness_score * 100)}%</span>
+                        {expandedEvalIdx === idx ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+                      </button>
+                    )}
                   </div>
+
+                  {msg.role === 'assistant' && (msg.faithfulness_score === undefined || msg.faithfulness_score === null) && loading && idx === messages.length - 1 && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500 animate-pulse text-left">
+                      <Loader2 className="h-3 w-3 animate-spin text-brand-500" />
+                      <span>Analyzing grounding with Llama 3.3...</span>
+                    </div>
+                  )}
+
+                  {msg.role === 'assistant' && expandedEvalIdx === idx && msg.faithfulness_score !== undefined && msg.faithfulness_score !== null && (
+                    <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-surface-900 border border-slate-200 dark:border-slate-700/80 text-xs text-slate-600 dark:text-slate-400 space-y-2 text-left">
+                      <div className="flex gap-4">
+                        <div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Faithfulness:</span>{' '}
+                          <span className={msg.faithfulness_score >= 0.8 ? 'text-emerald-600 font-semibold' : msg.faithfulness_score >= 0.6 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold'}>
+                            {Math.round(msg.faithfulness_score * 100)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Answer Relevancy:</span>{' '}
+                          <span className={msg.relevancy_score >= 0.8 ? 'text-emerald-600 font-semibold' : msg.relevancy_score >= 0.6 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold'}>
+                            {Math.round(msg.relevancy_score * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      {msg.evaluation_reason && (
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                          <p className="font-semibold mb-1 text-slate-700 dark:text-slate-300">Evaluation Analysis:</p>
+                          <p className="leading-relaxed whitespace-pre-line bg-white dark:bg-surface-800 p-2.5 rounded border border-slate-100 dark:border-slate-700/50 max-h-48 overflow-y-auto">
+                            {msg.evaluation_reason}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

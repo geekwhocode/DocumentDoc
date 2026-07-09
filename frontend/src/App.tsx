@@ -225,6 +225,21 @@ function App() {
                 }
                 return updated;
               });
+            } else if (dataObj.type === 'evaluation') {
+              const { faithfulness_score, relevancy_score, evaluation_reason } = dataObj;
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = {
+                    ...updated[lastIdx],
+                    faithfulness_score,
+                    relevancy_score,
+                    evaluation_reason
+                  };
+                }
+                return updated;
+              });
             } else if (dataObj.type === 'error') {
               // Handle runtime exceptions from backend LLM calls (e.g., API key failures, rate limits)
               throw new Error(dataObj.error);
